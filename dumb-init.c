@@ -40,6 +40,7 @@ int signal_rewrite[MAXSIG + 1] = {[0 ... MAXSIG] = -1};
 pid_t child_pid = -1;
 char debug = 0;
 char use_setsid = 1;
+int signal_delay = 0;
 
 int translate_signal(int signum) {
     if (signum <= 0 || signum > MAXSIG) {
@@ -52,6 +53,9 @@ int translate_signal(int signum) {
 
 void forward_signal(int signum) {
     signum = translate_signal(signum);
+    if (signal_delay) {
+        sleep(signal_delay);
+    }
     if (signum != -1) {
         kill(use_setsid ? -child_pid : child_pid, signum);
         DEBUG("Forwarded signal %d to children.\n", signum);
@@ -125,6 +129,7 @@ void print_help(char *argv[]) {
         "   -r, --rewrite s:r    Rewrite received signal s to new signal r before proxying.\n"
         "                        To ignore (not proxy) a signal, rewrite it to 0.\n"
         "                        This option can be specified multiple times.\n"
+        "   -d, --delay s        Delay forwarding signal by s seconds.\n"
         "   -v, --verbose        Print debugging information to stderr.\n"
         "   -h, --help           Print this help message and exit.\n"
         "   -V, --version        Print the current version and exit.\n"
@@ -147,6 +152,16 @@ void print_rewrite_signum_help() {
     exit(1);
 }
 
+void print_signal_delay_help() {
+    fprintf(
+        stderr,
+        "Usage: -d option takes <seconds>, where <seconds> is the number "
+        "of seconds to delay forwarding the signal to children.\n"
+        "Use --help for full usage.\n"
+    );
+    exit(1);
+}
+
 void parse_rewrite_signum(char *arg) {
     int signum, replacement;
     if (
@@ -157,6 +172,16 @@ void parse_rewrite_signum(char *arg) {
         signal_rewrite[signum] = replacement;
     } else {
         print_rewrite_signum_help();
+    }
+}
+
+void parse_signal_delay(char *arg) {
+    int r=0;
+
+    r=sscanf(arg, "%d", &signal_delay);
+
+    if (r != 1) {
+        print_signal_delay_help();
     }
 }
 
@@ -171,10 +196,11 @@ char **parse_command(int argc, char *argv[]) {
         {"help",         no_argument,       NULL, 'h'},
         {"single-child", no_argument,       NULL, 'c'},
         {"rewrite",      required_argument, NULL, 'r'},
+        {"delay",        required_argument, NULL, 'd'},
         {"verbose",      no_argument,       NULL, 'v'},
         {"version",      no_argument,       NULL, 'V'},
     };
-    while ((opt = getopt_long(argc, argv, "+hvVcr:", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "+hvVcr:d:", long_options, NULL)) != -1) {
         switch (opt) {
             case 'h':
                 print_help(argv);
@@ -190,6 +216,9 @@ char **parse_command(int argc, char *argv[]) {
                 break;
             case 'r':
                 parse_rewrite_signum(optarg);
+                break;
+            case 'd':
+                parse_signal_delay(optarg);
                 break;
             default:
                 exit(1);

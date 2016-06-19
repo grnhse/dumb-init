@@ -54,6 +54,7 @@ int translate_signal(int signum) {
 void forward_signal(int signum) {
     signum = translate_signal(signum);
     if (signal_delay) {
+        DEBUG("Delaying signal %d for %d seconds.\n", signum, signal_delay);
         sleep(signal_delay);
     }
     if (signum != -1) {
